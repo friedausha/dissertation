@@ -1,0 +1,14 @@
+# Checked-in copy of `crontab -l` for this project.
+# Re-apply with: crontab cron/crontab.txt
+#
+# Stage 1 (ingest): runs at :00 every hour.
+# Stage 1c–2b (dedup + text + classify + extract): runs at :30 every hour,
+#   giving the ingest jobs 30 min to complete before the pipeline starts.
+
+# ── Stage 1 — Ingest (GKG zip only; DOC API disabled — persistent 429s) ──────
+# GDELT publishes a new GKG file every 15 min — run in sync with that cadence
+*/15 * * * * /home/frieda/miniconda3/bin/python3 /home/frieda/Dissertation/gdelt_gkg/gdelt_gkg_fetch.py >> /home/frieda/Dissertation/logs/gdelt_gkg_cron.log 2>&1
+
+# ── Stages 1c–2b — Dedup + Text fetch + Classify + Extract ───────────────────
+# Offset 5 min after ingest so GKG always finishes before pipeline starts
+5-59/15 * * * * /home/frieda/miniconda3/bin/python3 /home/frieda/Dissertation/pipeline/run_pipeline.py >> /home/frieda/Dissertation/logs/pipeline_cron.log 2>&1

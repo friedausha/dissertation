@@ -1,0 +1,374 @@
+{
+  "info": {
+    "name": "Trafficking Incidents API",
+    "description": "REST API for the scam-driven trafficking incident pipeline. Base URL: http://localhost:8000\n\nSee GET /schema for the full incidents table column reference, including all enum values.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Liveness check. Returns {\"status\": \"ok\"} if the API is up."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Schema",
+      "item": [
+        {
+          "name": "GET /schema",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/schema",
+              "host": ["{{base_url}}"],
+              "path": ["schema"]
+            },
+            "description": "Returns the incidents table schema as structured JSON — column names, types, enums, and notes. Inject this into the LLM system prompt so it knows what columns and values to use."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Query (freeform SQL)",
+      "item": [
+        {
+          "name": "POST /query — all incidents",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT * FROM incidents ORDER BY reported_date DESC LIMIT 10\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/query",
+              "host": ["{{base_url}}"],
+              "path": ["query"]
+            },
+            "description": "Execute an arbitrary SELECT against the incidents table. Only SELECT is accepted; max 1000 rows; 5s timeout."
+          }
+        },
+        {
+          "name": "POST /query — counts by region",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT location_region, COUNT(*) AS incident_count FROM incidents WHERE location_region IS NOT NULL GROUP BY location_region ORDER BY incident_count DESC\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/query",
+              "host": ["{{base_url}}"],
+              "path": ["query"]
+            }
+          }
+        },
+        {
+          "name": "POST /query — monthly trend",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT DATE_TRUNC('month', reported_date) AS month, COUNT(*) AS incidents FROM incidents WHERE reported_date IS NOT NULL GROUP BY month ORDER BY month DESC LIMIT 12\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/query",
+              "host": ["{{base_url}}"],
+              "path": ["query"]
+            }
+          }
+        },
+        {
+          "name": "POST /query — Southeast Asia scam compounds",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT location_country, COUNT(*) AS incidents, SUM(victim_count) AS total_victims FROM incidents WHERE location_region = 'Southeast Asia' AND crime_type = 'scam_compound' GROUP BY location_country ORDER BY incidents DESC\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/query",
+              "host": ["{{base_url}}"],
+              "path": ["query"]
+            }
+          }
+        },
+        {
+          "name": "POST /query — high confidence only",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT reported_date, location_country, crime_type, victim_count, summary FROM incidents WHERE confidence = 'high' ORDER BY reported_date DESC LIMIT 20\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/query",
+              "host": ["{{base_url}}"],
+              "path": ["query"]
+            }
+          }
+        },
+        {
+          "name": "POST /query — ERROR: not a SELECT (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"DROP TABLE incidents\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/query",
+              "host": ["{{base_url}}"],
+              "path": ["query"]
+            },
+            "description": "Should return 400 — non-SELECT statements are rejected."
+          }
+        },
+        {
+          "name": "POST /query — ERROR: wrong table (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sql\": \"SELECT * FROM raw_articles LIMIT 5\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/query",
+              "host": ["{{base_url}}"],
+              "path": ["query"]
+            },
+            "description": "Should return 400 — api_user role has no access to raw_articles."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Incidents",
+      "item": [
+        {
+          "name": "GET /incidents — all (default limit 50)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents — filter by region",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents?region=Southeast Asia&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                { "key": "region", "value": "Southeast Asia" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents — filter by country",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents?country=Myanmar&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                { "key": "country", "value": "Myanmar" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents — filter by crime_type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents?crime_type=pig_butchering&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                { "key": "crime_type", "value": "pig_butchering" },
+                { "key": "limit", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents — date range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents?date_from=2026-04-01&date_to=2026-06-24&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                { "key": "date_from", "value": "2026-04-01" },
+                { "key": "date_to", "value": "2026-06-24" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents — combined filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents?region=Southeast Asia&crime_type=scam_compound&date_from=2026-01-01&limit=50",
+              "host": ["{{base_url}}"],
+              "path": ["incidents"],
+              "query": [
+                { "key": "region", "value": "Southeast Asia" },
+                { "key": "crime_type", "value": "scam_compound" },
+                { "key": "date_from", "value": "2026-01-01" },
+                { "key": "limit", "value": "50" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Aggregates",
+      "item": [
+        {
+          "name": "GET /incidents/aggregate/country",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents/aggregate/country",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "aggregate", "country"]
+            },
+            "description": "Incident counts grouped by country, ordered descending."
+          }
+        },
+        {
+          "name": "GET /incidents/aggregate/country — SE Asia only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents/aggregate/country?region=Southeast Asia",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "aggregate", "country"],
+              "query": [
+                { "key": "region", "value": "Southeast Asia" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents/aggregate/region",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents/aggregate/region",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "aggregate", "region"]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents/aggregate/region — scam_compound only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents/aggregate/region?crime_type=scam_compound",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "aggregate", "region"],
+              "query": [
+                { "key": "crime_type", "value": "scam_compound" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents/aggregate/crime_type",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents/aggregate/crime_type",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "aggregate", "crime_type"]
+            }
+          }
+        },
+        {
+          "name": "GET /incidents/aggregate/crime_type — SE Asia date range",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/incidents/aggregate/crime_type?region=Southeast Asia&date_from=2026-01-01",
+              "host": ["{{base_url}}"],
+              "path": ["incidents", "aggregate", "crime_type"],
+              "query": [
+                { "key": "region", "value": "Southeast Asia" },
+                { "key": "date_from", "value": "2026-01-01" }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
